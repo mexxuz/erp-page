@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ERP</title>
+  <link rel="icon" href="data:," />
+  <!--
+    ПОСТОЯННЫЙ ВХОД В ПРИЛОЖЕНИЕ.
+
+    Эта страница лежит на адресе, который не меняется никогда, и только
+    он вписан в BotFather. Само приложение она берёт у сервера конторы и
+    показывает у себя.
+
+    Зачем так. Адрес Mini App живёт в настройках BotFather, и поменять
+    его из кода нечем — у Telegram нет такой команды (сверено 20.09.2026:
+    в описании Bot API из всего про Mini App есть только смена кнопки у
+    поля ввода). А адрес сервера меняется при каждом холодном старте
+    бесплатного туннеля. Значит кнопки в теме группы умирали при каждом
+    перезапуске, пока человек не сходит в BotFather.
+
+    Почему приложение не выложено сюда целиком, как у «Сарафана». Код
+    приложения меняется по нескольку раз в день. Выложенная копия
+    отставала бы от сервера до тех пор, пока её не выложат заново, — и
+    экран спорил бы с данными. Здесь же страница каждый раз берётся
+    свежая: выкладывать заново не нужно ничего и никогда, а закрытый код
+    приложения остаётся закрытым — наружу смотрит только этот файл.
+
+    Что меняется при смене адреса сервера: соседний `server.json`, одна
+    строка. Его дописывает `scripts\publish.ps1` на офисной машине.
+  -->
+  <!-- Стили ожидания живут отдельным узлом с именем: когда приедет
+       приложение, их надо убрать целиком. Без этого они остаются поверх
+       него и перекрашивают КАЖДУЮ кнопку и каждый заголовок — правила тут
+       написаны на голые теги, а не на классы. -->
+  <style id="ждём-стили">
+    :root { color-scheme: light dark; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      background: var(--tg-theme-bg-color, #fff);
+      color: var(--tg-theme-text-color, #1a1a1a);
+      font: 15px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif;
+      padding: 24px; text-align: center;
+    }
+    .box { max-width: 320px; }
+    h1 { font-size: 17px; margin: 0 0 8px; }
+    p { margin: 0 0 16px; color: var(--tg-theme-hint-color, #8a8a8e); }
+    button {
+      font: inherit; font-weight: 600; cursor: pointer;
+      padding: 10px 20px; border: 0; border-radius: 10px;
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #fff);
+    }
+    .spin {
+      width: 28px; height: 28px; margin: 0 auto 14px; border-radius: 50%;
+      border: 3px solid var(--tg-theme-hint-color, #c8c8cc); border-top-color: transparent;
+      animation: t 0.9s linear infinite;
+    }
+    @keyframes t { to { transform: rotate(360deg); } }
+    .addr { font-size: 12px; word-break: break-all; opacity: 0.6; }
+  </style>
+</head>
+<body>
+  <div class="box" id="box">
+    <div class="spin"></div>
+    <p>Открываем ERP…</p>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    // Адрес сервера, который отработал в прошлый раз. Нужен, когда
+    // соседний файл ещё не доехал: GitHub держит отданное до десяти
+    // минут, и сразу после переезда там может лежать вчерашний адрес.
+    var ПАМЯТЬ = "erp-server";
+
+    function запомненный() {
+      try { return localStorage.getItem(ПАМЯТЬ) || ""; } catch (e) { return ""; }
+    }
+
+    function запомнить(адрес) {
+      try { localStorage.setItem(ПАМЯТЬ, адрес); } catch (e) { /* приватное окно */ }
+    }
+
+    function беда(текст, адрес) {
+      var box = document.getElementById("box");
+      box.innerHTML = "";
+      var h = document.createElement("h1");
+      h.textContent = "ERP не отвечает";
+      var p = document.createElement("p");
+      p.textContent = текст;
+      var a = document.createElement("p");
+      a.className = "addr";
+      a.textContent = адрес || "";
+      var b = document.createElement("button");
+      b.textContent = "Попробовать ещё раз";
+      b.onclick = function () { location.reload(); };
+      box.appendChild(h); box.appendChild(p); box.appendChild(a); box.appendChild(b);
+    }
+
+    function чисто(адрес) {
+      return String(адрес || "").trim().replace(/\/+$/, "");
+    }
+
+    /* Где сейчас сервер. Сначала то, что выложено рядом, потом то, что
+       сработало в прошлый раз: адрес мог уже смениться, а мог и нет. */
+    function адреса() {
+      var метка = new Date().getTime();   // обход кеша: каждый запрос новый
+      return fetch("server.json?t=" + метка, { cache: "no-store" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; })
+        .then(function (d) {
+          var список = [];
+          var свежий = чисто(d && d.server);
+          if (свежий) { список.push(свежий); }
+          var прошлый = чисто(запомненный());
+          if (прошлый && список.indexOf(прошлый) < 0) { список.push(прошлый); }
+          return список;
+        });
+    }
+
+    /* Страница приложения с сервера. `abs=1` — чтобы ссылки на стили и
+       скрипты были полными: короткие указывали бы сюда, где их нет. */
+    function взять(адрес) {
+      return fetch(адрес + "/miniapp?abs=1", { cache: "no-store" })
+        .then(function (r) {
+          if (!r.ok) { throw new Error("сервер ответил " + r.status); }
+          return r.text();
+        });
+    }
+
+    /* Перенесённый как узел скрипт браузер не выполняет — пересобираем.
+       `async = false` держит порядок: сперва мост Telegram, потом наши. */
+    function оживить(старый) {
+      var s = document.createElement("script");
+      for (var i = 0; i < старый.attributes.length; i++) {
+        s.setAttribute(старый.attributes[i].name, старый.attributes[i].value);
+      }
+      s.async = false;
+      s.text = старый.text;
+      return s;
+    }
+
+    function перенести(из, куда) {
+      var дети = Array.prototype.slice.call(из.childNodes);
+      for (var i = 0; i < дети.length; i++) {
+        var узел = дети[i];
+        if (узел.nodeName === "SCRIPT") { куда.appendChild(оживить(узел)); }
+        else { куда.appendChild(document.importNode(узел, true)); }
+      }
+    }
+
+    function показать(html) {
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      if (!doc.body || !doc.body.childNodes.length) { throw new Error("пустая страница"); }
+      // Заголовок и разметку берём целиком, свой заглушечный вид убираем —
+      // и разметку, и стили: иначе они останутся поверх приложения.
+      document.title = doc.title || "ERP";
+      var свои = document.getElementById("ждём-стили");
+      if (свои) { свои.remove(); }
+      document.body.textContent = "";
+      document.body.removeAttribute("style");
+      document.body.className = doc.body.className || "";
+      перенести(doc.head, document.head);
+      перенести(doc.body, document.body);
+    }
+
+    function попытка(список, i) {
+      if (i >= список.length) {
+        беда(список.length
+          ? "Сервер конторы не отвечает. Скорее всего, выключен компьютер, на котором он работает."
+          : "Не удалось узнать адрес сервера. Проверьте связь и попробуйте ещё раз.",
+        список[0] || "");
+        return;
+      }
+      взять(список[i]).then(function (html) {
+        запомнить(список[i]);
+        показать(html);
+      }, function () {
+        попытка(список, i + 1);
+      });
+    }
+
+    адреса().then(function (список) { попытка(список, 0); });
+  })();
+  </script>
+</body>
+</html>
