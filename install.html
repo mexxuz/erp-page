@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PS ERP — установка</title>
+<!-- Постоянная ссылка на приложение «PS ERP» для телефонов цеха. Адрес сервера меняется,
+     поэтому файл берём по адресу из server.json рядом (его обновляет scripts\publish.ps1). -->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #18222c; color: #fff; font: 17px/1.45 system-ui, sans-serif; }
+  main { max-width: 420px; margin: 0 auto; padding: 48px 20px; }
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  p { color: #ffffffcc; margin: 0 0 16px; }
+  a.btn { display: block; text-align: center; background: #2aabee; color: #fff; text-decoration: none;
+          font-weight: 600; padding: 16px; border-radius: 12px; margin: 24px 0; }
+  a.btn[aria-disabled="true"] { background: #ffffff22; pointer-events: none; }
+  ol { padding-left: 20px; color: #ffffffcc; }
+  li { margin-bottom: 8px; }
+  .err { color: #ffb4a9; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PS ERP</h1>
+  <p>Приложение ERP для телефона на Android: ваши работы, поручения, приход и уход. Уведомления
+     приходят сюда, а не в Telegram.</p>
+  <a class="btn" id="get" aria-disabled="true" href="#">Ищу сервер…</a>
+  <ol>
+    <li>Нажмите «Скачать» и откройте скачанный файл.</li>
+    <li>Телефон спросит, можно ли ставить приложения из браузера, — разрешите.</li>
+    <li>Откройте PS ERP, впишите свой номер телефона. Код из 4 цифр скажет руководитель.</li>
+    <li>Разрешите место (для прихода), камеру (фото работы) и уведомления.</li>
+  </ol>
+  <p id="msg"></p>
+</main>
+<script>
+  fetch("server.json?t=" + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
+    var a = document.getElementById("get");
+    a.href = j.server.replace(/\/$/, "") + "/app/ps-erp.apk";
+    a.textContent = "Скачать";
+    a.removeAttribute("aria-disabled");
+  }).catch(function () {
+    var m = document.getElementById("msg");
+    m.className = "err";
+    m.textContent = "Сервер ERP сейчас не отвечает. Попробуйте через пару минут.";
+  });
+</script>
+</body>
+</html>
